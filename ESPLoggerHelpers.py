@@ -5,6 +5,10 @@ from PyQt5.QtWidgets import QWidget
 import serial.tools.list_ports_linux as linport
 import json
 
+class ESPLoggerSignals(QObject):
+    add_to_logger_signal = pyqtSignal(str)
+
+logger_add_to_logger_signal = ESPLoggerSignals()
 
 add_to_logger_signal = pyqtSignal(str)
 
@@ -90,15 +94,13 @@ class ESPLoggerLeftSideExplorerFirst(QVBoxLayout):
             self.dialog = ESPLoggerDialog(message=self.message)
             self.dialog.exec()
         else:
-            print('Port: {0}; File name: {1}; Folder location: {2}'.format(self.port_name, self.file_name, self.logger_file_directory_selector_dialog))
             self.logger_port_add_detail = {
                 "Port": self.port_name,
                 "File": self.file_name,
                 "Directory": self.logger_file_directory_selector_dialog
             }
             self.port_details = json.dumps(self.logger_port_add_detail, indent = 8)
-            print('details: {0}'.format(self.port_details))
-            add_to_logger_signal.emit(self.port_details)
+            logger_add_to_logger_signal.add_to_logger_signal.emit(self.port_details)
 
     def place_widgets(self, *widgets: tuple):
         for widget in widgets:
@@ -119,7 +121,7 @@ class ESPLoggerLeftSideExplorerSecond(QVBoxLayout):
     def __init__(self):
         super(ESPLoggerLeftSideExplorerSecond, self).__init__()
         self.addStretch(2)
-        # add_to_logger_signal.connect(self.logger_connect_to_add_to_logger_signal)
+        logger_add_to_logger_signal.add_to_logger_signal.connect(self.logger_connect_to_add_to_logger_signal)   
 
         self.logger_left_side_explorer_second_hbox_widget_first = QWidget()
         self.logger_left_side_explorer_second_hbox_first = ESPLoggerLeftSideExplorerSecondPortBox()
@@ -135,8 +137,9 @@ class ESPLoggerLeftSideExplorerSecond(QVBoxLayout):
         for widget in widgets:
             self.addWidget(widget)
     
-    def logger_connect_to_add_to_logger_signal(self):
-        print('Here')
+    def logger_connect_to_add_to_logger_signal(self, detail):
+        self.details = json.loads(detail)
+        print('{0}'.format(self.details))
 
 class ESPLoggerLeftSideExplorer(QVBoxLayout):
     def __init__(self, parent):
