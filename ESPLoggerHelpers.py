@@ -8,10 +8,9 @@ import json
 
 class ESPLoggerSignals(QObject):
     add_to_logger_signal = pyqtSignal(str)
+    remove_from_logger_signal = pyqtSignal()
 
 logger_add_to_logger_signal = ESPLoggerSignals()
-
-add_to_logger_signal = pyqtSignal(str)
 
 class ESPLoggerDialog(QDialog):
     def __init__(self, message):
@@ -130,26 +129,45 @@ class ESPLoggerLeftSideExplorerSecond(QVBoxLayout):
     def __init__(self):
         super(ESPLoggerLeftSideExplorerSecond, self).__init__()
         self.addStretch(2)
-        logger_add_to_logger_signal.add_to_logger_signal.connect(self.logger_connect_to_add_to_logger_signal)   
+        logger_add_to_logger_signal.add_to_logger_signal.connect(self.logger_connect_to_add_to_logger_signal)  
+        logger_add_to_logger_signal.remove_from_logger_signal.connect(self.logger_connect_to_remove_from_logger_signal) 
         self.added_ports = list()
+        self.added_port_widgets = list()
     
     def place_widgets(self, *widgets: tuple):
         for widget in widgets:
             self.addWidget(widget)
     
+    def logger_connect_to_remove_from_logger_signal(self):
+        for added_port_widget in self.added_port_widgets:
+            if added_port_widget.logger_left_side_explorer_second_hbox_port_check_box.isChecked():
+                for i in reversed(range(added_port_widget.count())):
+                    item = added_port_widget.itemAt(i)
+                    widget = item.widget()
+                    if widget:
+                        widget.deleteLater()
+                added_port_widget.deleteLater()
+                self.added_port_widgets.remove(added_port_widget)
+                self.added_ports.remove(added_port_widget.logger_left_side_explorer_second_hbox_port_button.text())
+        
+    
     def logger_connect_to_add_to_logger_signal(self, detail):
         self.details = json.loads(detail)
         if self.added_ports and self.details['Port'] in self.added_ports:
+            self.dialog = ESPLoggerDialog(message='Port already selected!!')
+            self.dialog.exec()
+        else:
             if self.check_file_if_exist(self.details['Directory'], self.details['File']):
-                print('File exist in the directory')
+                self.dialog = ESPLoggerDialog(message='File exist in the directory!!')
+                self.dialog.exec()
             else:
                 print('File doesn\'t exist in the directory')
-        else:
-            self.added_ports.append(self.details['Port'])
-            self.logger_left_side_explorer_second_hbox_widget = QWidget()
-            self.logger_left_side_explorer_second_hbox = ESPLoggerLeftSideExplorerSecondPortBox(name=self.details['Port'])
-            self.logger_left_side_explorer_second_hbox_widget.setLayout(self.logger_left_side_explorer_second_hbox)
-            self.place_widgets(self.logger_left_side_explorer_second_hbox_widget)
+                self.added_ports.append(self.details['Port'])
+                self.logger_left_side_explorer_second_hbox_widget = QWidget()
+                self.logger_left_side_explorer_second_hbox = ESPLoggerLeftSideExplorerSecondPortBox(name=self.details['Port'])
+                self.logger_left_side_explorer_second_hbox_widget.setLayout(self.logger_left_side_explorer_second_hbox)
+                self.added_port_widgets.append(self.logger_left_side_explorer_second_hbox)
+                self.place_widgets(self.logger_left_side_explorer_second_hbox_widget)
     
     def check_file_if_exist(self, directory_path=None, filename=None):
         self.exist = False
@@ -179,6 +197,7 @@ class ESPLoggerLeftSideExplorer(QVBoxLayout):
         self.logger_left_side_first_vbox = ESPLoggerLeftSideExplorerFirst()
         self.logger_left_side_second_vbox = ESPLoggerLeftSideExplorerSecond()
         self.logger_left_side_delete_button = QPushButton('Remove from Logger')
+        self.logger_left_side_delete_button.clicked.connect(self.delete_from_logger_button_clicked)
 
         self.logger_left_side_first_vbox_widget.setLayout(self.logger_left_side_first_vbox)
         self.logger_left_side_second_vbox_widget.setLayout(self.logger_left_side_second_vbox)
@@ -192,6 +211,10 @@ class ESPLoggerLeftSideExplorer(QVBoxLayout):
     def place_widgets(self, *widgets: tuple):
         for widget in widgets:
             self.addWidget(widget)
+
+    def delete_from_logger_button_clicked(self):
+        logger_add_to_logger_signal.remove_from_logger_signal.emit()
+    
 
 class ESPLoggerRightSideExplorer(QVBoxLayout):
     def __init__(self, parent):
