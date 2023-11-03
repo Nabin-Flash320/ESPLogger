@@ -2,7 +2,8 @@ from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import QWidget
-import serial.tools.list_ports_linux as linport
+import serial.tools.list_ports as ports_list
+import os
 import json
 
 class ESPLoggerSignals(QObject):
@@ -50,6 +51,7 @@ class ESPLoggerSplitter(QSplitter):
         for widget in widgets:
             self.addWidget(widget)
 
+# This class holds logger dropdown, file name setter, baudrate selector, file saving directory selector and the add to the logger button.
 class ESPLoggerLeftSideExplorerFirst(QVBoxLayout):
     def __init__(self):
         super(ESPLoggerLeftSideExplorerFirst, self).__init__()
@@ -57,33 +59,39 @@ class ESPLoggerLeftSideExplorerFirst(QVBoxLayout):
         self.logger_file_directory_selector_dialog = str()
 
         self.logger_dropdown = QComboBox()
-        self.ports_connected = linport.comports()
+        self.ports_connected = ports_list.comports()
         for port, desc, hwid in sorted(self.ports_connected):
             self.logger_dropdown.addItem(port)
         
         self.logger_file_name = QLineEdit()
-        self.logger_file_directory_selector_button = QPushButton('Select file location')
+        self.baudrate_dropdown = QComboBox()
+        self.baudrate_dropdown.addItems(('9600', '14400', '19200', '38400', '57600', '115200', '128000', '256000'))
+        self.logger_file_directory_selector_button = QPushButton('Select a directory')
         self.logger_file_directory_selector_button.clicked.connect(self.logger_file_directory_selector_button_clicked)
         self.logger_add_button = QPushButton(text="Add to Logger")
         self.logger_add_button.clicked.connect(self.logger_add_button_clicked)
         
-        self.place_widgets(self.logger_dropdown, self.logger_file_name, self.logger_file_directory_selector_button, self.logger_add_button)
+        self.place_widgets(self.logger_dropdown, self.baudrate_dropdown, self.logger_file_name, self.logger_file_directory_selector_button, self.logger_add_button)
     
     def logger_file_directory_selector_button_clicked(self):
         self.logger_file_directory_selector_dialog = QFileDialog.getExistingDirectory(caption='Select a Directory')
-        print('{0}'.format(self.logger_file_directory_selector_dialog))
+        self.directory_name = self.logger_file_directory_selector_dialog.split('/')
+        self.logger_file_directory_selector_button.setText('{0}'.format(self.directory_name[-1]))
     
     def logger_add_button_clicked(self):
         self.port_name = self.logger_dropdown.currentText()
         self.file_name = self.logger_file_name.text()
         self.is_empty = False
         self.message = str()
-        if len(self.file_name) == 0:
-            self.is_empty = True
-            self.message = 'Empty file name.'
-        elif len(self.port_name) == 0:
+        if len(self.port_name) == 0:
             self.is_empty = True
             self.message = 'Empty port name.'
+        if len(self.baudrate_dropdown) == 0:
+            self.is_empty = True
+            self.message = 'Empty baudrate.'
+        elif len(self.file_name) == 0:
+            self.is_empty = True
+            self.message = 'Empty file name.'
         elif len(self.logger_file_directory_selector_dialog) == 0:
             self.is_empty = True
             self.message = 'File direcotry not selected.'
@@ -117,21 +125,13 @@ class ESPLoggerLeftSideExplorerSecondPortBox(QHBoxLayout):
         for widget in widgets:
             self.addWidget(widget)
 
+# This class holds the portname and the checkbox.
 class ESPLoggerLeftSideExplorerSecond(QVBoxLayout):
     def __init__(self):
         super(ESPLoggerLeftSideExplorerSecond, self).__init__()
         self.addStretch(2)
         logger_add_to_logger_signal.add_to_logger_signal.connect(self.logger_connect_to_add_to_logger_signal)   
-
-        self.logger_left_side_explorer_second_hbox_widget_first = QWidget()
-        self.logger_left_side_explorer_second_hbox_first = ESPLoggerLeftSideExplorerSecondPortBox()
-
-        self.logger_left_side_explorer_second_hbox_widget_second = QWidget()
-        self.logger_left_side_explorer_second_hbox_second = ESPLoggerLeftSideExplorerSecondPortBox()
-
-        self.logger_left_side_explorer_second_hbox_widget_first.setLayout(self.logger_left_side_explorer_second_hbox_first)
-        self.logger_left_side_explorer_second_hbox_widget_second.setLayout(self.logger_left_side_explorer_second_hbox_second);
-        self.place_widgets(self.logger_left_side_explorer_second_hbox_widget_first, self.logger_left_side_explorer_second_hbox_widget_second)
+        self.added_ports = list()
     
     def place_widgets(self, *widgets: tuple):
         for widget in widgets:
@@ -139,8 +139,34 @@ class ESPLoggerLeftSideExplorerSecond(QVBoxLayout):
     
     def logger_connect_to_add_to_logger_signal(self, detail):
         self.details = json.loads(detail)
-        print('{0}'.format(self.details))
+        if self.added_ports and self.details['Port'] in self.added_ports:
+            if self.check_file_if_exist(self.details['Directory'], self.details['File']):
+                print('File exist in the directory')
+            else:
+                print('File doesn\'t exist in the directory')
+        else:
+            self.added_ports.append(self.details['Port'])
+            self.logger_left_side_explorer_second_hbox_widget = QWidget()
+            self.logger_left_side_explorer_second_hbox = ESPLoggerLeftSideExplorerSecondPortBox(name=self.details['Port'])
+            self.logger_left_side_explorer_second_hbox_widget.setLayout(self.logger_left_side_explorer_second_hbox)
+            self.place_widgets(self.logger_left_side_explorer_second_hbox_widget)
+    
+    def check_file_if_exist(self, directory_path=None, filename=None):
+        self.exist = False
+        if directory_path is None and filename is None:
+            self.exist = False
+        else:
+            print(directory_path)
+            for root, dirs, files in os.walk(directory_path):
+                if filename in [file.split('.')[0] for file in files]:
+                    self.exist = True
+                else:
+                    self.exist = False
+                dirs.clear()
+        return self.exist
+            
 
+# This class holds all the widgets in the left side of the logger UI.
 class ESPLoggerLeftSideExplorer(QVBoxLayout):
     def __init__(self, parent):
         super(ESPLoggerLeftSideExplorer, self).__init__()
